@@ -405,6 +405,7 @@ yield(void)
   if(p->leftticks <=  0){
     acquire(&ptable.lock);  //DOC: yieldlock
     myproc()->state = RUNNABLE;
+    p->curcomp = 0;
     sched();
     release(&ptable.lock);
   } else if (p->leftticks <= p->curcomp){
@@ -594,7 +595,7 @@ setslice(int pid, int slice)
   return -1;
 }
 
-// Set the slice of the specified pid to slice.
+// get the slice of the specified pid.
 int
 getslice(int pid)
 {
@@ -622,15 +623,15 @@ int fork2(int slice){
 // Get pstat
 int getpinfo(struct pstat *ptr){
   for(int i = 0; i< NPROC; i++){
-    if(ptable.proc[i].state == UNUSED){
-      ptr->inuse[i] = 0;
-      ptr->pid[i] = 0;
-      ptr->timeslice[i] = 0;
-      ptr->compticks[i] = 0;
-      ptr->schedticks[i] = 0;
-      ptr->sleepticks[i] = 0;
-      ptr->switches[i] = 0;
-    } else {
+    //if(ptable.proc[i].state == UNUSED){
+    //  ptr->inuse[i] = 0;
+    //  ptr->pid[i] = 0;
+    //  ptr->timeslice[i] = 0;
+    //  ptr->compticks[i] = 0;
+    //  ptr->schedticks[i] = 0;
+    //  ptr->sleepticks[i] = 0;
+    //  ptr->switches[i] = 0;
+    //} else {
       ptr->inuse[i] = 1;
       ptr->pid[i] = ptable.proc[i].pid;
       ptr->timeslice[i] = ptable.proc[i].timeslice;
@@ -638,7 +639,7 @@ int getpinfo(struct pstat *ptr){
       ptr->schedticks[i] = ptable.proc[i].schedticks;
       ptr->sleepticks[i] = ptable.proc[i].sleepticks;
       ptr->switches[i] = ptable.proc[i].switches;
-    }
+    //}
   }
   return 0;
 }

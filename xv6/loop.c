@@ -13,6 +13,6 @@ int main(int argc, char *argv[]){
     j += i * j + 1;
     i++;
   }
-  printf(1, "%d", i);
+
   exit();
 }
