@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "pstat.h"
 
 int
 sys_fork(void)
@@ -91,15 +92,62 @@ sys_uptime(void)
   return xticks;
 }
 
+// Call setslice in proc.c
 int sys_setslice(void){
+  int pid;
+  int slice;
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argint(1, &slice) < 0)
+    return -1;
+  acquire(&tickslock);
+  if((pid <= 0) | (slice <= 0)){
+    release(&tickslock);
+    return -1;
+  }
+  int r = setslice(pid, slice);
+  return r;
+  release(&tickslock);
   return 1;
 }
+
+// Call getslice in proc.c
 int sys_getslice(void){
-  return 1;
+  int pid;
+  int slice;
+  if(argint(0, &pid) < 0)
+    return -1;
+  acquire(&tickslock);
+  if(pid <= 0){
+    release(&tickslock);
+    return -1;
+  }
+  slice = getslice(pid);
+  release(&tickslock);
+  return slice;
 }
+
 int sys_fork2(void){
-  return 1;
+  int pid;
+  int slice;
+  if(argint(0, &slice) < 0)
+    return -1;
+  acquire(&tickslock);
+  if(slice <= 0){
+    release(&tickslock);
+    return -1;
+  }
+  pid = fork2(slice);
+  release(&tickslock);
+  return pid;
 }
 int sys_getpinfo(void){
-  return 1;
+  int addr;
+  if(argint(0, &addr) < 0)
+    return -1;
+  acquire(&tickslock);
+  struct pstat* ptr= (struct pstat*) addr;
+  getpinfo(ptr);
+  release(&tickslock);
+  return 0;
 }

@@ -53,7 +53,7 @@ struct proc {
   int timeslice;               // number of base ticks this process can run
   int compticks;               // number of compensation ticks has used
   int schedticks;              // Total number of timer ticks scheduled
-  int switchs;                 // Total num times this process has been scheduled
+  int switches;                 // Total num times this process has been scheduled
   int sleepticks;              // Total number of timer ticks this process has been scheduled
   int curcomp;                 // Compensation ticks for next or current slice
   int leftticks;               // Ticks left for next or current slice

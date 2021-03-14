@@ -125,7 +125,7 @@ int             setslice(int, int);
 int             getslice(int);
 int             fork2(int);
 int             getpinfo(struct pstat*);
-void             setsleeptime(int);
+void            setsleeptime(int);
 
 
 // swtch.S
