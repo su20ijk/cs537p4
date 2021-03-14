@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
 
 struct {
   struct spinlock lock;
@@ -88,6 +89,12 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+  // New features
+  p->timeslice = 1;
+  p->compticks = 0;
+  p->schedticks = 0;
+  p
 
   release(&ptable.lock);
 
