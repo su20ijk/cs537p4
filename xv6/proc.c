@@ -474,7 +474,7 @@ wakeup1(void *chan)
       if(p->leftsleep <= 0){
         p->state = RUNNABLE;
       } else {
-        p->leftsleep = -1;
+        p->leftsleep = p->leftsleep-1;
         p->sleepticks = p->sleepticks + 1;
         p->curcomp = p->curcomp + 1;
       }
