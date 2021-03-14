@@ -71,6 +71,7 @@ sys_sleep(void)
       release(&tickslock);
       return -1;
     }
+    setsleeptime(n);
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
@@ -88,4 +89,17 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int sys_setslice(void){
+  return 1;
+}
+int sys_getslice(void){
+  return 1;
+}
+int sys_fork2(void){
+  return 1;
+}
+int sys_getpinfo(void){
+  return 1;
 }

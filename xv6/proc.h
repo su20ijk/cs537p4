@@ -57,6 +57,7 @@ struct proc {
   int sleepticks;              // Total number of timer ticks this process has been scheduled
   int curcomp;                 // Compensation ticks for next or current slice
   int leftticks;               // Ticks left for next or current slice
+  int leftsleep;               // Ticks left for current sleep syscall
 };
 
 // Process memory is laid out contiguously, low addresses first:

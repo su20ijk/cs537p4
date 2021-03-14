@@ -94,7 +94,6 @@ found:
   p->timeslice = 1;
   p->compticks = 0;
   p->schedticks = 0;
-  p
 
   release(&ptable.lock);
 
@@ -457,7 +456,11 @@ sleep(void *chan, struct spinlock *lk)
     acquire(lk);
   }
 }
-
+// New: set sleep time
+void setsleeptime(int sleepT){
+  struct proc *p = myproc();
+  p->leftsleep = sleepT;
+}
 //PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
@@ -466,9 +469,17 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
+      if(p->leftsleep <= 0){
+        p->state = RUNNABLE;
+      } else {
+        p->leftsleep = -1;
+        p->sleepticks = p->sleepticks + 1;
+        p->curcomp = p->curcomp + 1;
+      }
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -539,3 +550,4 @@ procdump(void)
     cprintf("\n");
   }
 }
+
