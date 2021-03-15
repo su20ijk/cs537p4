@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
 
 struct {
   struct spinlock lock;
@@ -89,6 +90,11 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  // New features
+  p->timeslice = 1;
+  p->compticks = 0;
+  p->schedticks = 0;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -149,6 +155,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  p->timeslice = 1;
 
   release(&ptable.lock);
 }
@@ -215,6 +222,14 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->timeslice = curproc->timeslice;
+  np->compticks = 0;
+  np->schedticks = 0;
+  np->switches = 0;
+  np->sleepticks = 0;
+  np->curcomp = 0;
+  np->leftticks = 0;
+  np->leftsleep = 0;
 
   release(&ptable.lock);
 
@@ -342,6 +357,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      p->leftticks = p->timeslice + p->curcomp;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
@@ -367,7 +383,6 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();
-
   if(!holding(&ptable.lock))
     panic("sched ptable.lock");
   if(mycpu()->ncli != 1)
@@ -378,6 +393,7 @@ sched(void)
     panic("sched interruptible");
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
+  myproc()->switches = myproc()->switches+1;
   mycpu()->intena = intena;
 }
 
@@ -385,10 +401,25 @@ sched(void)
 void
 yield(void)
 {
-  acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
-  sched();
-  release(&ptable.lock);
+  struct proc *p = myproc();
+  if(p->leftticks <=  0){
+    acquire(&ptable.lock);  //DOC: yieldlock
+    myproc()->state = RUNNABLE;
+    p->curcomp = 0;
+    sched();
+    release(&ptable.lock);
+  } else if (p->leftticks <= p->curcomp){
+    acquire(&ptable.lock);  //DOC: yieldlock
+    p->compticks = p->compticks + 1;
+    p->leftticks = p->leftticks - 1;
+    p->schedticks = p->schedticks + 1;
+    release(&ptable.lock);
+  } else {
+    acquire(&ptable.lock);  //DOC: yieldlock
+    p->leftticks = p->leftticks - 1;
+    p->schedticks = p->schedticks + 1;
+    release(&ptable.lock);
+  }
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -450,7 +481,11 @@ sleep(void *chan, struct spinlock *lk)
     acquire(lk);
   }
 }
-
+// New: set sleep time
+void setsleeptime(int sleepT){
+  struct proc *p = myproc();
+  p->leftsleep = sleepT;
+}
 //PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
@@ -459,9 +494,17 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
+      if(p->leftsleep <= 0){
+        p->state = RUNNABLE;
+      } else {
+        p->leftsleep = p->leftsleep - 1;
+        p->sleepticks = p->sleepticks + 1;
+        p->curcomp = p->curcomp + 1;
+      }
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -531,4 +574,72 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// Set the slice of the specified pid to slice.
+int
+setslice(int pid, int slice)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      int curslice = p->timeslice;
+      p->timeslice = slice;
+      p->leftticks = p->leftticks - curslice + slice;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+// get the slice of the specified pid.
+int
+getslice(int pid)
+{
+  struct proc *p;
+  int timeslice = -1;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      timeslice = p->timeslice;
+      release(&ptable.lock);
+      return timeslice;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+// Create a new process with specified time slice
+int fork2(int slice){
+  int pid = fork();
+  setslice(pid, slice);
+  return pid;
+}
+
+// Get pstat
+int getpinfo(struct pstat *ptr){
+  for(int i = 0; i< NPROC; i++){
+    //if(ptable.proc[i].state == UNUSED){
+    //  ptr->inuse[i] = 0;
+    //  ptr->pid[i] = 0;
+    //  ptr->timeslice[i] = 0;
+    //  ptr->compticks[i] = 0;
+    //  ptr->schedticks[i] = 0;
+    //  ptr->sleepticks[i] = 0;
+    //  ptr->switches[i] = 0;
+    //} else {
+      ptr->inuse[i] = 1;
+      ptr->pid[i] = ptable.proc[i].pid;
+      ptr->timeslice[i] = ptable.proc[i].timeslice;
+      ptr->compticks[i] = ptable.proc[i].compticks;
+      ptr->schedticks[i] = ptable.proc[i].schedticks;
+      ptr->sleepticks[i] = ptable.proc[i].sleepticks;
+      ptr->switches[i] = ptable.proc[i].switches;
+    //}
+  }
+  return 0;
 }
