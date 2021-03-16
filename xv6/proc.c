@@ -347,7 +347,22 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    int count = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      int newtime = p->timeslice + p->compticks;
+      count = count + newtime;
+    }
+    struct proc myproc[count];
+    int pos = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      int newtime = p->timeslice + p->compticks;
+      for(int i =0; i<newtime; i++){
+        myproc[pos+i] = ptable.proc;
+      }
+      pos = pos + newtime;
+    }
+    
+    for(p = myproc.proc; p < &myproc.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
