@@ -353,6 +353,7 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    int count = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p != schedtable[nextproc])
         continue;
