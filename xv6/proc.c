@@ -20,6 +20,9 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+static struct proc *schedtable[NPROC];
+static int nextproc;
+static int lastproc;
 
 void
 pinit(void)
@@ -156,7 +159,9 @@ userinit(void)
 
   p->state = RUNNABLE;
   p->timeslice = 1;
-
+  nextproc = 0;
+  lastproc = 0;
+  schedtable[0] = p;
   release(&ptable.lock);
 }
 
@@ -230,7 +235,8 @@ fork(void)
   np->curcomp = 0;
   np->leftticks = 0;
   np->leftsleep = 0;
-
+  lastproc = (lastproc + 1) % NPROC;
+  schedtable[lastproc] = np;
   release(&ptable.lock);
 
   return pid;
@@ -340,7 +346,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+  // int curproc;
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -349,26 +355,14 @@ scheduler(void)
     acquire(&ptable.lock);
     int count = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      int newtime = p->timeslice + p->compticks;
-      count = count + newtime;
-    }
-    struct proc myproc[count];
-    int pos = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      int newtime = p->timeslice + p->compticks;
-      for(int i =0; i<newtime; i++){
-        myproc[pos+i] = ptable.proc;
-      }
-      pos = pos + newtime;
-    }
-    
-    for(p = myproc.proc; p < &myproc.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p != schedtable[nextproc])
         continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      schedtable[nextproc] = 0;
+      nextproc = (nextproc + 1) % NPROC;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -421,6 +415,8 @@ yield(void)
     acquire(&ptable.lock);  //DOC: yieldlock
     myproc()->state = RUNNABLE;
     p->curcomp = 0;
+    lastproc = (lastproc + 1) % NPROC;
+    schedtable[lastproc] = p;
     sched();
     release(&ptable.lock);
   } else if (p->leftticks <= p->curcomp){
@@ -484,6 +480,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  schedtable[(nextproc - 1) % NPROC] = 0;
 
   sched();
 
@@ -513,6 +510,8 @@ wakeup1(void *chan)
     if(p->state == SLEEPING && p->chan == chan){
       if(p->leftsleep <= 0){
         p->state = RUNNABLE;
+        lastproc = (lastproc + 1)%NPROC;
+        schedtable[lastproc] = p;
       } else {
         p->leftsleep = p->leftsleep - 1;
         p->sleepticks = p->sleepticks + 1;
@@ -637,16 +636,17 @@ int fork2(int slice){
 
 // Get pstat
 int getpinfo(struct pstat *ptr){
+  acquire(&ptable.lock);
   for(int i = 0; i< NPROC; i++){
-    //if(ptable.proc[i].state == UNUSED){
-    //  ptr->inuse[i] = 0;
-    //  ptr->pid[i] = 0;
-    //  ptr->timeslice[i] = 0;
-    //  ptr->compticks[i] = 0;
-    //  ptr->schedticks[i] = 0;
-    //  ptr->sleepticks[i] = 0;
-    //  ptr->switches[i] = 0;
-    //} else {
+    if(ptable.proc[i].state == UNUSED){
+      ptr->inuse[i] = 0;
+      ptr->pid[i] = 0;
+      ptr->timeslice[i] = 0;
+      ptr->compticks[i] = 0;
+      ptr->schedticks[i] = 0;
+      ptr->sleepticks[i] = 0;
+      ptr->switches[i] = 0;
+    } else {
       ptr->inuse[i] = 1;
       ptr->pid[i] = ptable.proc[i].pid;
       ptr->timeslice[i] = ptable.proc[i].timeslice;
@@ -654,7 +654,8 @@ int getpinfo(struct pstat *ptr){
       ptr->schedticks[i] = ptable.proc[i].schedticks;
       ptr->sleepticks[i] = ptable.proc[i].sleepticks;
       ptr->switches[i] = ptable.proc[i].switches;
-    //}
+    }
   }
+  release(&ptable.lock);
   return 0;
 }
