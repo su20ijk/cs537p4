@@ -34,7 +34,10 @@ int main(int argc, char *argv[]){
       exec(path, argvB);
     } else {
       sleep(sleepParent);
-      getpinfo(&p);
+      if(getpinfo(&p) != 0){
+        printf(1, "Error on get p infor\n");
+        exit();
+      }
       wait();
       wait();
       for(int i = 0; i < 64; i++){

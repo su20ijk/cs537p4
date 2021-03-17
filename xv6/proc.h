@@ -58,6 +58,7 @@ struct proc {
   int curcomp;                 // Compensation ticks for next or current slice
   int leftticks;               // Ticks left for next or current slice
   int leftsleep;               // Ticks left for current sleep syscall
+  // struct proc* nextproc;       // Next process to run in the queue
 };
 
 // Process memory is laid out contiguously, low addresses first:

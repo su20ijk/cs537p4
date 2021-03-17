@@ -20,6 +20,9 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+static struct proc *schedtable[NPROC];
+static int nextproc;
+static int lastproc;
 
 void
 pinit(void)
@@ -156,7 +159,9 @@ userinit(void)
 
   p->state = RUNNABLE;
   p->timeslice = 1;
-
+  nextproc = 0;
+  lastproc = 0;
+  schedtable[0] = p;
   release(&ptable.lock);
 }
 
@@ -230,7 +235,8 @@ fork(void)
   np->curcomp = 0;
   np->leftticks = 0;
   np->leftsleep = 0;
-
+  lastproc = (lastproc + 1) % NPROC;
+  schedtable[lastproc] = np;
   release(&ptable.lock);
 
   return pid;
@@ -340,7 +346,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+  // int curproc;
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -348,12 +354,14 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p != schedtable[nextproc])
         continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      schedtable[nextproc] = 0;
+      nextproc = (nextproc + 1) % NPROC;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -406,6 +414,8 @@ yield(void)
     acquire(&ptable.lock);  //DOC: yieldlock
     myproc()->state = RUNNABLE;
     p->curcomp = 0;
+    lastproc = (lastproc + 1) % NPROC;
+    schedtable[lastproc] = p;
     sched();
     release(&ptable.lock);
   } else if (p->leftticks <= p->curcomp){
@@ -469,6 +479,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  schedtable[(nextproc - 1) % NPROC] = 0;
 
   sched();
 
@@ -498,6 +509,8 @@ wakeup1(void *chan)
     if(p->state == SLEEPING && p->chan == chan){
       if(p->leftsleep <= 0){
         p->state = RUNNABLE;
+        lastproc = (lastproc + 1)%NPROC;
+        schedtable[lastproc] = p;
       } else {
         p->leftsleep = p->leftsleep - 1;
         p->sleepticks = p->sleepticks + 1;
@@ -622,6 +635,9 @@ int fork2(int slice){
 
 // Get pstat
 int getpinfo(struct pstat *ptr){
+  if(ptr < 0){
+    return -1;
+  }
   for(int i = 0; i< NPROC; i++){
     //if(ptable.proc[i].state == UNUSED){
     //  ptr->inuse[i] = 0;
