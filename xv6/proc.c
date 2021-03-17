@@ -635,9 +635,6 @@ int fork2(int slice){
 
 // Get pstat
 int getpinfo(struct pstat *ptr){
-  if(ptr < 0){
-    return -1;
-  }
   for(int i = 0; i< NPROC; i++){
     //if(ptable.proc[i].state == UNUSED){
     //  ptr->inuse[i] = 0;

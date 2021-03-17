@@ -143,6 +143,8 @@ int sys_getpinfo(void){
   int addr;
   if(argint(0, &addr) < 0)
     return -1;
+  if((addr < 0)|(addr > 50000))
+    return -1;
   acquire(&tickslock);
   struct pstat* ptr= (struct pstat*) addr;
   getpinfo(ptr);
