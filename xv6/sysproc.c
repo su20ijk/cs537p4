@@ -98,14 +98,11 @@ int sys_setslice(void){
     return -1;
   if(argint(1, &slice) < 0)
     return -1;
-  acquire(&tickslock);
   if((pid <= 0) | (slice <= 0)){
-    release(&tickslock);
     return -1;
   }
   int r = setslice(pid, slice);
   return r;
-  release(&tickslock);
   return 1;
 }
 
@@ -115,13 +112,10 @@ int sys_getslice(void){
   int slice;
   if(argint(0, &pid) < 0)
     return -1;
-  acquire(&tickslock);
   if(pid <= 0){
-    release(&tickslock);
     return -1;
   }
   slice = getslice(pid);
-  release(&tickslock);
   return slice;
 }
 
@@ -130,20 +124,18 @@ int sys_fork2(void){
   int slice;
   if(argint(0, &slice) < 0)
     return -1;
-  acquire(&tickslock);
   if(slice <= 0){
-    release(&tickslock);
     return -1;
   }
   pid = fork2(slice);
-  release(&tickslock);
   return pid;
 }
+
 int sys_getpinfo(void){
   int addr;
   if(argint(0, &addr) < 0)
     return -1;
-  if((addr < 0)|(addr > 50000))
+  if((addr < 0) | (addr > 60000))
     return -1;
   struct pstat* ptr= (struct pstat*) addr;
   getpinfo(ptr);

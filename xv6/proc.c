@@ -230,7 +230,7 @@ fork(void)
   np->timeslice = curproc->timeslice;
   np->compticks = 0;
   np->schedticks = 0;
-  np->switches = 0;
+  np->switches = 1;
   np->sleepticks = 0;
   np->curcomp = 0;
   np->leftticks = 0;
@@ -269,7 +269,7 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
+  schedtable[nextproc-1] = 0;
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -353,7 +353,6 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    int count = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p != schedtable[nextproc])
         continue;
@@ -480,6 +479,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  p->curcomp = 0;
   schedtable[(nextproc - 1) % NPROC] = 0;
 
   sched();
@@ -495,8 +495,10 @@ sleep(void *chan, struct spinlock *lk)
 }
 // New: set sleep time
 void setsleeptime(int sleepT){
+  acquire(&ptable.lock);
   struct proc *p = myproc();
   p->leftsleep = sleepT;
+  release(&ptable.lock);
 }
 //PAGEBREAK!
 // Wake up all processes sleeping on chan.
